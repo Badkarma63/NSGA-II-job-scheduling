@@ -18,7 +18,7 @@ if uploaded_file:
 
     # --- NSGA-II Parameters ---
     population_size = 20
-    generations = 30  # For demo, you can increase
+    generations = 30  
     crossover_prob = 0.9
     mutation_prob = 0.1
 
