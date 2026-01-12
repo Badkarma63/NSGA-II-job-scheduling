@@ -54,7 +54,7 @@ if uploaded_file:
         return makespan, waiting_time, weighted_obj, completion_time
 
     # --- Fast NSGA-II Simulation (No full generations) ---
-    if st.button("Run Fast Simulation"):
+    if st.button("Run Simulation"):
         # Use small population & few generations for instant results
         population = initialize_population()
 
