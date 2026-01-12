@@ -4,7 +4,7 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 
-st.title("Fast NSGA-II Job Scheduling Simulation")
+st.title("NSGA-II Job Scheduling Simulation")
 
 # --- Sidebar Parameters ---
 st.sidebar.header("NSGA-II Parameters (Fast Mode)")
