@@ -216,16 +216,7 @@ if uploaded is not None:
         st.write("Waiting Time:", best["obj"][1])
         plot_gantt(best["gantt"])
 
-        # Fitness Values Table
-        st.subheader("Fitness Values for Population")
-        fitness_list = []
-        for i, ind in enumerate(pop):
-            fit = compute_fitness(ind)
-            fitness_list.append({
-                "Individual": i+1,
-                "Fitness": fit,
-                "Makespan": ind["obj"][0],
-                "Waiting Time": ind["obj"][1]
-            })
-        fitness_df = pd.DataFrame(fitness_list)
-        st.dataframe(fitness_df)
+        # TOTAL FITNESS 
+        total_fitness = compute_total_fitness(pop)  # <- HERE
+        st.subheader("Total Fitness of Population")
+        st.write(f"{total_fitness:.6f}")  # <- HERE
