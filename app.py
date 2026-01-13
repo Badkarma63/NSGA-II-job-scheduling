@@ -1,115 +1,149 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+import random
+import plotly.express as px
 
-# ---------------- Page Config ----------------
-st.set_page_config(page_title="NSGA-II Job Scheduling", layout="centered")
+# ----------------------------
+# Utility Functions
+# ----------------------------
+def normalize(values):
+    min_v = min(values)
+    max_v = max(values)
+    return [(v - min_v) / (max_v - min_v + 1e-9) for v in values]
 
-st.title("NSGA-II Job Scheduling (Fast Mode)")
-st.write("Upload job processing time CSV and run simulation.")
+# ----------------------------
+# Scheduling Simulation
+# ----------------------------
+def evaluate_schedule(job_order, processing_times):
+    n_jobs, n_machines = processing_times.shape
+    machine_time = np.zeros(n_machines)
+    job_time = np.zeros(n_jobs)
 
-# ---------------- Sidebar ----------------
-st.sidebar.header("Simulation Parameters")
+    schedule_log = []
+    total_waiting = 0
 
-population_size = st.sidebar.slider("Population Size", 5, 20, 10)
-generations = st.sidebar.slider("Generations (Demo)", 1, 10, 3)
+    for job in job_order:
+        for m in range(n_machines):
+            start = max(machine_time[m], job_time[job])
+            wait = start - job_time[job]
+            total_waiting += wait
 
-w1 = st.sidebar.slider("Makespan Weight", 0.0, 1.0, 0.5)
-w2 = st.sidebar.slider("Waiting Time Weight", 0.0, 1.0, 0.5)
+            finish = start + processing_times[job, m]
+            machine_time[m] = finish
+            job_time[job] = finish
 
-# ---------------- Upload CSV ----------------
-uploaded_file = st.file_uploader("Upload CSV File", type=["csv"])
+            schedule_log.append({
+                "job": f"J{job+1}",
+                "machine": f"M{m+1}",
+                "start": start,
+                "end": finish
+            })
 
-# ---------------- No Heavy Code Above ----------------
+    makespan = max(job_time)
+    return makespan, total_waiting, schedule_log
 
-if uploaded_file is not None:
+# ----------------------------
+# NSGA-II (FAST DEMO VERSION)
+# ----------------------------
+def nsga2(processing_times, pop_size=10, generations=3):
+    n_jobs = processing_times.shape[0]
+    population = [random.sample(range(n_jobs), n_jobs) for _ in range(pop_size)]
+
+    solutions = []
+
+    for individual in population:
+        makespan, waiting, schedule = evaluate_schedule(individual, processing_times)
+        solutions.append({
+            "sequence": individual,
+            "makespan": makespan,
+            "waiting": waiting,
+            "schedule": schedule
+        })
+
+    return solutions
+
+# ----------------------------
+# Fitness (GOAL FUNCTION)
+# ----------------------------
+def compute_fitness(solutions, w_m=0.5, w_w=0.5):
+    makespans = [s["makespan"] for s in solutions]
+    waitings = [s["waiting"] for s in solutions]
+
+    nm = normalize(makespans)
+    nw = normalize(waitings)
+
+    for i, s in enumerate(solutions):
+        s["fitness"] = w_m * nm[i] + w_w * nw[i]
+
+    return solutions
+
+# ----------------------------
+# Gantt Chart
+# ----------------------------
+def plot_gantt(schedule):
+    df = pd.DataFrame(schedule)
+
+    fig = px.timeline(
+        df,
+        x_start="start",
+        x_end="end",
+        y="machine",
+        color="job",
+        title="Gantt Chart for Selected Schedule"
+    )
+
+    fig.update_yaxes(autorange="reversed")
+    st.plotly_chart(fig, use_container_width=True)
+
+# ----------------------------
+# STREAMLIT UI
+# ----------------------------
+st.title("NSGA-II Job Scheduling (With Fitness Goal)")
+
+uploaded_file = st.file_uploader("Upload Job Scheduling CSV", type=["csv"])
+
+if uploaded_file:
     df = pd.read_csv(uploaded_file, index_col=0)
+    processing_times = df.values
+
     st.subheader("Processing Time Matrix")
     st.dataframe(df)
 
-    processing_times = df.to_numpy()
-    n_jobs, n_machines = processing_times.shape
+    st.sidebar.header("Fitness Weights (Goal)")
+    w_m = st.sidebar.slider("Makespan Weight", 0.0, 1.0, 0.5)
+    w_w = 1.0 - w_m
+    st.sidebar.write(f"Waiting Time Weight: {w_w}")
 
-    # ---------------- Fitness Evaluation ----------------
-    def evaluate(order):
-        completion = np.zeros((n_jobs, n_machines))
+    if st.button("Run NSGA-II"):
+        with st.spinner("Running NSGA-II..."):
+            solutions = nsga2(processing_times)
+            solutions = compute_fitness(solutions, w_m, w_w)
 
-        for i, job in enumerate(order):
-            for m in range(n_machines):
-                if i == 0 and m == 0:
-                    completion[i, m] = processing_times[job, m]
-                elif i == 0:
-                    completion[i, m] = completion[i, m-1] + processing_times[job, m]
-                elif m == 0:
-                    completion[i, m] = completion[i-1, m] + processing_times[job, m]
-                else:
-                    completion[i, m] = max(completion[i-1, m], completion[i, m-1]) + processing_times[job, m]
+            best = min(solutions, key=lambda x: x["fitness"])
 
-        makespan = completion[-1, -1]
-        waiting_time = sum(completion[:, 0] - processing_times[order, 0])
+        # Pareto Plot
+        pareto_df = pd.DataFrame({
+            "Makespan": [s["makespan"] for s in solutions],
+            "Waiting Time": [s["waiting"] for s in solutions]
+        })
 
-        return makespan, waiting_time, completion
+        st.subheader("Pareto Front (Trade-offs)")
+        fig = px.scatter(
+            pareto_df,
+            x="Makespan",
+            y="Waiting Time",
+            title="NSGA-II Pareto Front"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-    # ---------------- Run Simulation ----------------
-    if st.button("Run Simulation"):
-        population = [np.random.permutation(n_jobs) for _ in range(population_size)]
+        # Best Solution (GOAL)
+        st.subheader("Selected Best Solution (Goal-Based Fitness)")
+        st.write(f"✔ Makespan: {best['makespan']}")
+        st.write(f"✔ Waiting Time: {best['waiting']}")
+        st.write(f"🎯 Fitness Value: {best['fitness']:.4f}")
+        st.write(f"🧬 Job Sequence: {[f'J{i+1}' for i in best['sequence']]}")
 
-        results = []
-        for ind in population:
-            m, w, comp = evaluate(ind)
-            weighted = w1 * m + w2 * w
-            results.append((ind, m, w, weighted, comp))
-
-        # ---------------- Pareto Line Graph ----------------
-        makespans = [r[1] for r in results]
-        waitings = [r[2] for r in results]
-
-        fig, ax = plt.subplots()
-        ax.plot(sorted(makespans), sorted(waitings), marker='o')
-        ax.set_xlabel("Makespan")
-        ax.set_ylabel("Job Waiting Time")
-        ax.set_title("Pareto Trend (Fast Mode)")
-        st.pyplot(fig)
-
-        # ---------------- Best Solution ----------------
-        best = min(results, key=lambda x: x[3])
-        best_order, best_m, best_w, _, best_completion = best
-
-        st.subheader("Best Job Sequence (Weighted Objective)")
-        st.write([f"J{j+1}" for j in best_order])
-        st.write(f"Makespan: {best_m}")
-        st.write(f"Waiting Time: {best_w}")
-
-        # ---------------- Gantt Chart ----------------
-        st.subheader("Gantt Chart of Best Schedule")
-
-        fig2, ax2 = plt.subplots(figsize=(10, 5))
-        colors = plt.cm.tab10.colors
-
-        for i, job in enumerate(best_order):
-            for m in range(n_machines):
-                start = best_completion[i, m] - processing_times[job, m]
-                ax2.barh(
-                    f"M{m+1}",
-                    processing_times[job, m],
-                    left=start,
-                    color=colors[i % len(colors)],
-                    edgecolor='black'
-                )
-                ax2.text(
-                    start + processing_times[job, m] / 2,
-                    m,
-                    f"J{job+1}",
-                    ha='center',
-                    va='center',
-                    color='white',
-                    fontsize=8
-                )
-
-        ax2.set_xlabel("Time")
-        ax2.set_ylabel("Machines")
-        ax2.set_title("Gantt Chart")
-        st.pyplot(fig2)
-
-        st.success("Simulation completed successfully ✅")
+        # Gantt Chart
+        st.subheader("Gantt Chart (UI Visualization)")
+        plot_gantt(best["schedule"])
