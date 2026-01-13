@@ -165,7 +165,7 @@ st.title("NSGA-II Job Scheduling")
 
 uploaded = st.file_uploader("Upload CSV File", type="csv")
 
-if uploaded:
+if uploaded is not None:
     df = pd.read_csv(uploaded, index_col=0)
     pt = df.values
     st.dataframe(df)
@@ -178,14 +178,13 @@ if uploaded:
 
     if st.button("Run NSGA-II"):
         with st.spinner("Running NSGA-II..."):
-           pop = nsga2(pt, pop_size, generations, pc, pm)
+            pop = nsga2(pt, pop_size, generations, pc, pm)
 
-# FINAL NON-DOMINATED SORT (IMPORTANT)
-fronts = fast_nondominated_sort(pop)
-for f in fronts:
-    crowding_distance(f)
+            fronts = fast_nondominated_sort(pop)
+            for f in fronts:
+                crowding_distance(f)
 
-pareto = fronts[0]   # Rank-1 solutions
+            pareto = fronts[0]
 
         pareto_df = pd.DataFrame(
             [(p["obj"][0], p["obj"][1]) for p in pareto],
@@ -196,6 +195,7 @@ pareto = fronts[0]   # Rank-1 solutions
         st.scatter_chart(pareto_df)
 
         best = min(pareto, key=lambda x: x["obj"][0])
+
         st.subheader("Best Schedule (Minimum Makespan)")
         st.write("Sequence:", [f"J{i+1}" for i in best["seq"]])
         st.write("Makespan:", best["obj"][0])
