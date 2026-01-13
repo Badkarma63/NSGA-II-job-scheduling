@@ -147,6 +147,10 @@ def nsga2(pt, pop_size, generations, pc, pm):
 def plot_gantt(gantt):
     fig, ax = plt.subplots(figsize=(12, 6))
 
+    # Dark background
+    fig.patch.set_facecolor("#0E1117")
+    ax.set_facecolor("#0E1117")
+
     jobs = sorted(list(set([g[3] for g in gantt])))
     machines = sorted(list(set([g[0] for g in gantt])))
 
@@ -158,7 +162,8 @@ def plot_gantt(gantt):
             end - start,
             left=start,
             color=job_colors[job],
-            edgecolor="black"
+            edgecolor="white",
+            linewidth=0.8
         )
         ax.text(
             start + (end - start) / 2,
@@ -171,15 +176,24 @@ def plot_gantt(gantt):
             fontweight="bold"
         )
 
-    ax.set_xlabel("Time")
-    ax.set_ylabel("Machine")
-    ax.set_title("Gantt Chart – NSGA-II Optimized Schedule")
+    ax.set_xlabel("Time", color="white")
+    ax.set_ylabel("Machine", color="white")
+    ax.set_title(
+        "Gantt Chart – NSGA-II Optimized Schedule",
+        color="white",
+        fontsize=14,
+        pad=10
+    )
 
-    ax.set_yticks(machines)
-    ax.grid(axis="x", linestyle="--", alpha=0.6)
+    ax.tick_params(axis="x", colors="white")
+    ax.tick_params(axis="y", colors="white")
+
+    ax.grid(axis="x", linestyle="--", alpha=0.3, color="gray")
+
+    for spine in ax.spines.values():
+        spine.set_visible(False)
 
     st.pyplot(fig)
-
 
 # ----------------------------------
 # STREAMLIT UI
