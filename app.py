@@ -144,39 +144,51 @@ def nsga2(pt, pop_size, generations, pc, pm):
 # ----------------------------------
 # Gantt Chart (Professional)
 # ----------------------------------
+import pandas as pd
 import plotly.express as px
 
-def plot_gantt(gantt):
-    df = pd.DataFrame(gantt, columns=["Machine", "Start", "End", "Job"])
+# Example schedule data from NSGA-II output
+# Columns: Job, Machine, Start, Finish
+# Replace this with your actual schedule
+data = [
+    {"Job": "J1", "Machine": "M1", "Start": 0, "Finish": 5},
+    {"Job": "J2", "Machine": "M1", "Start": 5, "Finish": 12},
+    {"Job": "J3", "Machine": "M2", "Start": 0, "Finish": 8},
+    {"Job": "J4", "Machine": "M2", "Start": 8, "Finish": 15},
+    {"Job": "J1", "Machine": "M2", "Start": 15, "Finish": 20},
+    {"Job": "J2", "Machine": "M3", "Start": 0, "Finish": 6},
+    {"Job": "J3", "Machine": "M3", "Start": 6, "Finish": 14},
+    {"Job": "J4", "Machine": "M3", "Start": 14, "Finish": 22},
+]
 
-    fig = px.timeline(
-        df,
-        x_start="Start",
-        x_end="End",
-        y="Machine",
-        color="Job",
-        title="NSGA-II Optimized Job Schedule",
-        color_discrete_sequence=px.colors.qualitative.Bold
-    )
+df = pd.DataFrame(data)
 
-    fig.update_layout(
-        height=600,                     # BIG boxes
-        xaxis_title="Time",
-        yaxis_title="Machine",
-        plot_bgcolor="#0E1117",
-        paper_bgcolor="#0E1117",
-        font=dict(color="white"),
-        legend_title_text="Jobs",
-    )
+# Plotly Gantt chart
+fig = px.timeline(
+    df, 
+    x_start="Start", 
+    x_end="Finish", 
+    y="Machine", 
+    color="Job", 
+    text="Job"
+)
 
-    fig.update_yaxes(autorange="reversed")
+# Improve appearance
+fig.update_yaxes(autorange="reversed")  # So M1 is at top
+fig.update_traces(marker=dict(line=dict(width=1, color="black")), textposition="inside")
+fig.update_layout(
+    title="NSGA-II Job Schedule Gantt Chart",
+    title_x=0.5,
+    xaxis_title="Time",
+    yaxis_title="Machine",
+    font=dict(size=14),
+    bargap=0.3,  # Bigger boxes
+    plot_bgcolor="#f0f0f0",  # Light gray background instead of white
+    paper_bgcolor="#f0f0f0",
+    height=600,  # Increase height for better scroll
+)
 
-    fig.update_traces(
-        marker=dict(line=dict(width=1, color="white")),
-        opacity=0.95
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
+fig.show()
 # ----------------------------------
 # STREAMLIT UI
 # ----------------------------------
