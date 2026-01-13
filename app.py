@@ -120,14 +120,15 @@ def nsga2(pt, pop_size, generations, pc, pm):
 
 def compute_total_fitness(population):
     """
-    Compute total fitness in a scaled way.
-    Higher value = better fitness.
+    Compute total fitness in a reasonable range (hundreds).
+    Smaller Makespan + Waiting → higher fitness.
     """
     total_fitness = 0
     for individual in population:
         makespan, waiting = individual["obj"]
-        # scale so smaller makespan + waiting → higher fitness
-        total_fitness += 1000 - (makespan + waiting)  
+        # Scale fitness to be around 1–10 per individual
+        fitness = 10 * (1 / (makespan + waiting + 1e-9))
+        total_fitness += fitness
     return total_fitness
 # ----------------------------------
 # Gantt Chart (Professional)
@@ -218,6 +219,6 @@ if uploaded is not None:
         plot_gantt(best["gantt"])
 
         # TOTAL FITNESS 
-        total_fitness = compute_total_fitness(pop)  # <- HERE
+       total_fitness = compute_total_fitness(pop)
         st.subheader("Total Fitness of Population")
-        st.write(f"{total_fitness:.6f}")  # <- HERE
+        st.write(f"{total_fitness:.2f}")
