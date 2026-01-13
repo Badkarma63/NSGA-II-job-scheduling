@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import random
-import plotly.express as px
+import matplotlib.pyplot as plt
 
 # ----------------------------
 # Utility Functions
@@ -44,27 +44,25 @@ def evaluate_schedule(job_order, processing_times):
     return makespan, total_waiting, schedule_log
 
 # ----------------------------
-# NSGA-II (FAST DEMO VERSION)
+# NSGA-II (FAST DEMO)
 # ----------------------------
-def nsga2(processing_times, pop_size=10, generations=3):
+def nsga2(processing_times, pop_size=10):
     n_jobs = processing_times.shape[0]
     population = [random.sample(range(n_jobs), n_jobs) for _ in range(pop_size)]
 
     solutions = []
-
     for individual in population:
-        makespan, waiting, schedule = evaluate_schedule(individual, processing_times)
+        m, w, s = evaluate_schedule(individual, processing_times)
         solutions.append({
             "sequence": individual,
-            "makespan": makespan,
-            "waiting": waiting,
-            "schedule": schedule
+            "makespan": m,
+            "waiting": w,
+            "schedule": s
         })
-
     return solutions
 
 # ----------------------------
-# Fitness (GOAL FUNCTION)
+# Fitness Function (GOAL)
 # ----------------------------
 def compute_fitness(solutions, w_m=0.5, w_w=0.5):
     makespans = [s["makespan"] for s in solutions]
@@ -75,75 +73,52 @@ def compute_fitness(solutions, w_m=0.5, w_w=0.5):
 
     for i, s in enumerate(solutions):
         s["fitness"] = w_m * nm[i] + w_w * nw[i]
-
     return solutions
+
+# ----------------------------
+# Pareto Plot
+# ----------------------------
+def plot_pareto(solutions):
+    m = [s["makespan"] for s in solutions]
+    w = [s["waiting"] for s in solutions]
+
+    fig, ax = plt.subplots()
+    ax.scatter(m, w)
+    ax.set_xlabel("Makespan")
+    ax.set_ylabel("Waiting Time")
+    ax.set_title("Pareto Front (Trade-off)")
+    st.pyplot(fig)
 
 # ----------------------------
 # Gantt Chart
 # ----------------------------
 def plot_gantt(schedule):
-    df = pd.DataFrame(schedule)
+    fig, ax = plt.subplots()
 
-    fig = px.timeline(
-        df,
-        x_start="start",
-        x_end="end",
-        y="machine",
-        color="job",
-        title="Gantt Chart for Selected Schedule"
-    )
+    colors = {}
+    y_pos = {}
 
-    fig.update_yaxes(autorange="reversed")
-    st.plotly_chart(fig, use_container_width=True)
+    machines = sorted(set(s["machine"] for s in schedule))
+    for i, m in enumerate(machines):
+        y_pos[m] = i
+
+    for s in schedule:
+        if s["job"] not in colors:
+            colors[s["job"]] = np.random.rand(3,)
+        ax.barh(
+            y_pos[s["machine"]],
+            s["end"] - s["start"],
+            left=s["start"],
+            color=colors[s["job"]]
+        )
+
+    ax.set_yticks(list(y_pos.values()))
+    ax.set_yticklabels(list(y_pos.keys()))
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Machine")
+    ax.set_title("Gantt Chart (Schedule Visualization)")
+    st.pyplot(fig)
 
 # ----------------------------
 # STREAMLIT UI
-# ----------------------------
-st.title("NSGA-II Job Scheduling (With Fitness Goal)")
-
-uploaded_file = st.file_uploader("Upload Job Scheduling CSV", type=["csv"])
-
-if uploaded_file:
-    df = pd.read_csv(uploaded_file, index_col=0)
-    processing_times = df.values
-
-    st.subheader("Processing Time Matrix")
-    st.dataframe(df)
-
-    st.sidebar.header("Fitness Weights (Goal)")
-    w_m = st.sidebar.slider("Makespan Weight", 0.0, 1.0, 0.5)
-    w_w = 1.0 - w_m
-    st.sidebar.write(f"Waiting Time Weight: {w_w}")
-
-    if st.button("Run NSGA-II"):
-        with st.spinner("Running NSGA-II..."):
-            solutions = nsga2(processing_times)
-            solutions = compute_fitness(solutions, w_m, w_w)
-
-            best = min(solutions, key=lambda x: x["fitness"])
-
-        # Pareto Plot
-        pareto_df = pd.DataFrame({
-            "Makespan": [s["makespan"] for s in solutions],
-            "Waiting Time": [s["waiting"] for s in solutions]
-        })
-
-        st.subheader("Pareto Front (Trade-offs)")
-        fig = px.scatter(
-            pareto_df,
-            x="Makespan",
-            y="Waiting Time",
-            title="NSGA-II Pareto Front"
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        # Best Solution (GOAL)
-        st.subheader("Selected Best Solution (Goal-Based Fitness)")
-        st.write(f"✔ Makespan: {best['makespan']}")
-        st.write(f"✔ Waiting Time: {best['waiting']}")
-        st.write(f"🎯 Fitness Value: {best['fitness']:.4f}")
-        st.write(f"🧬 Job Sequence: {[f'J{i+1}' for i in best['sequence']]}")
-
-        # Gantt Chart
-        st.subheader("Gantt Chart (UI Visualization)")
-        plot_gantt(best["schedule"])
+# --------------------------
