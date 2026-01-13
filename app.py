@@ -219,6 +219,6 @@ if uploaded is not None:
         plot_gantt(best["gantt"])
 
         # TOTAL FITNESS 
-       total_fitness = compute_total_fitness(pop)
-        st.subheader("Total Fitness of Population")
-        st.write(f"{total_fitness:.2f}")
+      total_fitness = compute_total_fitness(pop)
+st.subheader("Total Fitness of Population")
+st.write(f"{total_fitness:.2f}")
