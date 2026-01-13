@@ -178,9 +178,14 @@ if uploaded:
 
     if st.button("Run NSGA-II"):
         with st.spinner("Running NSGA-II..."):
-            pop = nsga2(pt, pop_size, generations, pc, pm)
+           pop = nsga2(pt, pop_size, generations, pc, pm)
 
-        pareto = [p for p in pop if p["rank"] == 1]
+# FINAL NON-DOMINATED SORT (IMPORTANT)
+fronts = fast_nondominated_sort(pop)
+for f in fronts:
+    crowding_distance(f)
+
+pareto = fronts[0]   # Rank-1 solutions
 
         pareto_df = pd.DataFrame(
             [(p["obj"][0], p["obj"][1]) for p in pareto],
