@@ -144,57 +144,39 @@ def nsga2(pt, pop_size, generations, pc, pm):
 # ----------------------------------
 # Gantt Chart (Professional)
 # ----------------------------------
+import plotly.express as px
+
 def plot_gantt(gantt):
-    fig, ax = plt.subplots(figsize=(12, 6))
+    df = pd.DataFrame(gantt, columns=["Machine", "Start", "End", "Job"])
 
-    # Dark background
-    fig.patch.set_facecolor("#0E1117")
-    ax.set_facecolor("#0E1117")
-
-    jobs = sorted(list(set([g[3] for g in gantt])))
-    machines = sorted(list(set([g[0] for g in gantt])))
-
-    job_colors = {job: plt.cm.tab20(i) for i, job in enumerate(jobs)}
-
-    for machine, start, end, job in gantt:
-        ax.barh(
-            machine,
-            end - start,
-            left=start,
-            color=job_colors[job],
-            edgecolor="white",
-            linewidth=0.8
-        )
-        ax.text(
-            start + (end - start) / 2,
-            machine,
-            job,
-            va="center",
-            ha="center",
-            color="white",
-            fontsize=9,
-            fontweight="bold"
-        )
-
-    ax.set_xlabel("Time", color="white")
-    ax.set_ylabel("Machine", color="white")
-    ax.set_title(
-        "Gantt Chart – NSGA-II Optimized Schedule",
-        color="white",
-        fontsize=14,
-        pad=10
+    fig = px.timeline(
+        df,
+        x_start="Start",
+        x_end="End",
+        y="Machine",
+        color="Job",
+        title="NSGA-II Optimized Job Schedule",
+        color_discrete_sequence=px.colors.qualitative.Bold
     )
 
-    ax.tick_params(axis="x", colors="white")
-    ax.tick_params(axis="y", colors="white")
+    fig.update_layout(
+        height=600,                     # BIG boxes
+        xaxis_title="Time",
+        yaxis_title="Machine",
+        plot_bgcolor="#0E1117",
+        paper_bgcolor="#0E1117",
+        font=dict(color="white"),
+        legend_title_text="Jobs",
+    )
 
-    ax.grid(axis="x", linestyle="--", alpha=0.3, color="gray")
+    fig.update_yaxes(autorange="reversed")
 
-    for spine in ax.spines.values():
-        spine.set_visible(False)
+    fig.update_traces(
+        marker=dict(line=dict(width=1, color="white")),
+        opacity=0.95
+    )
 
-    st.pyplot(fig)
-
+    st.plotly_chart(fig, use_container_width=True)
 # ----------------------------------
 # STREAMLIT UI
 # ----------------------------------
