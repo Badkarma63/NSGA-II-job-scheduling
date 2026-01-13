@@ -145,16 +145,39 @@ def nsga2(pt, pop_size, generations, pc, pm):
 # Gantt Chart (Professional)
 # ----------------------------------
 def plot_gantt(gantt):
-    fig, ax = plt.subplots(figsize=(10, 5))
-    colors = {}
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    jobs = sorted(list(set([g[3] for g in gantt])))
+    machines = sorted(list(set([g[0] for g in gantt])))
+
+    job_colors = {job: plt.cm.tab20(i) for i, job in enumerate(jobs)}
 
     for machine, start, end, job in gantt:
-        if job not in colors:
-            colors[job] = np.random.rand(3,)
-        ax.barh(machine, end - start, left=start, color=colors[job])
+        ax.barh(
+            machine,
+            end - start,
+            left=start,
+            color=job_colors[job],
+            edgecolor="black"
+        )
+        ax.text(
+            start + (end - start) / 2,
+            machine,
+            job,
+            va="center",
+            ha="center",
+            color="white",
+            fontsize=9,
+            fontweight="bold"
+        )
 
     ax.set_xlabel("Time")
-    ax.set_title("Gantt Chart – Best NSGA-II Schedule")
+    ax.set_ylabel("Machine")
+    ax.set_title("Gantt Chart – NSGA-II Optimized Schedule")
+
+    ax.set_yticks(machines)
+    ax.grid(axis="x", linestyle="--", alpha=0.6)
+
     st.pyplot(fig)
 
 
