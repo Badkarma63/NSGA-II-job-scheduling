@@ -117,19 +117,17 @@ def nsga2(pt, pop_size, generations, pc, pm):
         population = offspring
     return population
 
-
+# ----------------------------------
+# Total Fitness Function
+# ----------------------------------
 def compute_total_fitness(population):
-    """
-    Compute total fitness in a reasonable range (hundreds).
-    Smaller Makespan + Waiting → higher fitness.
-    """
     total_fitness = 0
     for individual in population:
         makespan, waiting = individual["obj"]
-        # Scale fitness to be around 1–10 per individual
-        fitness = 10 * (1 / (makespan + waiting + 1e-9))
+        fitness = 10 * (1 / (makespan + waiting + 1e-9))  # scaled to hundreds
         total_fitness += fitness
     return total_fitness
+
 # ----------------------------------
 # Gantt Chart (Professional)
 # ----------------------------------
@@ -192,36 +190,37 @@ if uploaded is not None:
     pc = st.sidebar.slider("Crossover Rate", 0.5, 1.0, 0.9)
     pm = st.sidebar.slider("Mutation Rate", 0.01, 0.5, 0.1)
 
-   if st.button("Run NSGA-II"):
-    with st.spinner("Running NSGA-II..."):
-        # Run NSGA-II
-        pop = nsga2(pt, pop_size, generations, pc, pm)
+    # ✅ Correct indentation here
+    if st.button("Run NSGA-II"):
+        with st.spinner("Running NSGA-II..."):
+            # Run NSGA-II
+            pop = nsga2(pt, pop_size, generations, pc, pm)
 
-        fronts = fast_nondominated_sort(pop)
-        for f in fronts:
-            crowding_distance(f)
+            fronts = fast_nondominated_sort(pop)
+            for f in fronts:
+                crowding_distance(f)
 
-        pareto = fronts[0]
+            pareto = fronts[0]
 
-        # Pareto Front Chart
-        pareto_df = pd.DataFrame(
-            [(p["obj"][0], p["obj"][1]) for p in pareto],
-            columns=["Makespan", "Waiting Time"]
-        )
-        st.subheader("Pareto Front")
-        st.scatter_chart(pareto_df)
+            # Pareto Front Chart
+            pareto_df = pd.DataFrame(
+                [(p["obj"][0], p["obj"][1]) for p in pareto],
+                columns=["Makespan", "Waiting Time"]
+            )
+            st.subheader("Pareto Front")
+            st.scatter_chart(pareto_df)
 
-        # Best Schedule
-        best = min(pareto, key=lambda x: x["obj"][0])
-        st.subheader("Best Schedule (Minimum Makespan)")
-        st.write("Sequence:", [f"J{i+1}" for i in best["seq"]])
-        st.write("Makespan:", best["obj"][0])
-        st.write("Waiting Time:", best["obj"][1])
-        plot_gantt(best["gantt"])
+            # Best Schedule
+            best = min(pareto, key=lambda x: x["obj"][0])
+            st.subheader("Best Schedule (Minimum Makespan)")
+            st.write("Sequence:", [f"J{i+1}" for i in best["seq"]])
+            st.write("Makespan:", best["obj"][0])
+            st.write("Waiting Time:", best["obj"][1])
+            plot_gantt(best["gantt"])
 
-        # -------------------------------
-        # TOTAL FITNESS
-        # -------------------------------
-        total_fitness = compute_total_fitness(pop)
-        st.subheader("Total Fitness of Population")
-        st.write(f"{total_fitness:.2f}")
+            # -------------------------------
+            # TOTAL FITNESS
+            # -------------------------------
+            total_fitness = compute_total_fitness(pop)
+            st.subheader("Total Fitness of Population")
+            st.write(f"{total_fitness:.2f}")
