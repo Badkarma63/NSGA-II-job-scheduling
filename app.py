@@ -117,13 +117,11 @@ def nsga2(pt, pop_size, generations, pc, pm):
         population = offspring
     return population
 
-# ----------------------------------
-# Fitness Function
-# ----------------------------------
-# Total Fitness Value for the Population
-total_fitness = sum(compute_fitness(ind) for ind in pop)
-st.subheader("Total Fitness of Population")
-st.write(f"{total_fitness:.6f}")
+
+def compute_fitness(individual):
+    makespan, waiting = individual["obj"]
+    fitness = 1 / (makespan + waiting + 1e-9)  # smaller obj → higher fitness
+    return fitness
 # ----------------------------------
 # Gantt Chart (Professional)
 # ----------------------------------
