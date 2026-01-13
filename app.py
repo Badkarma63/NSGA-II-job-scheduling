@@ -118,10 +118,16 @@ def nsga2(pt, pop_size, generations, pc, pm):
     return population
 
 
-def compute_fitness(individual):
-    makespan, waiting = individual["obj"]
-    fitness = 1 / (makespan + waiting + 1e-9)  # smaller obj → higher fitness
-    return fitness
+def compute_total_fitness(population):
+    """
+    Compute total fitness for the entire population.
+    Smaller Makespan & Waiting → higher fitness.
+    """
+    total_fitness = 0
+    for individual in population:
+        makespan, waiting = individual["obj"]
+        total_fitness += 1 / (makespan + waiting + 1e-9)
+    return total_fitness
 # ----------------------------------
 # Gantt Chart (Professional)
 # ----------------------------------
