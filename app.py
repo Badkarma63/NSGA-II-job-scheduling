@@ -1,159 +1,199 @@
 import streamlit as st
-st.write("✅ App started successfully")
-
-import streamlit as st
 import pandas as pd
 import numpy as np
 import random
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# ----------------------------
-# Utility Functions
-# ----------------------------
-def normalize(values):
-    min_v = min(values)
-    max_v = max(values)
-    return [(v - min_v) / (max_v - min_v + 1e-9) for v in values]
-
-# ----------------------------
-# Scheduling Simulation
-# ----------------------------
-def evaluate_schedule(job_order, processing_times):
-    n_jobs, n_machines = processing_times.shape
+# ----------------------------------
+# Schedule Evaluation
+# ----------------------------------
+def evaluate_schedule(sequence, pt):
+    n_jobs, n_machines = pt.shape
     machine_time = np.zeros(n_machines)
     job_time = np.zeros(n_jobs)
+    waiting = 0
+    gantt = []
 
-    schedule_log = []
-    total_waiting = 0
-
-    for job in job_order:
+    for job in sequence:
         for m in range(n_machines):
             start = max(machine_time[m], job_time[job])
-            wait = start - job_time[job]
-            total_waiting += wait
-
-            finish = start + processing_times[job, m]
+            waiting += start - job_time[job]
+            finish = start + pt[job, m]
             machine_time[m] = finish
             job_time[job] = finish
 
-            schedule_log.append({
-                "job": f"J{job+1}",
-                "machine": f"M{m+1}",
-                "start": start,
-                "end": finish
-            })
+            gantt.append((f"M{m+1}", start, finish, f"J{job+1}"))
 
-    makespan = max(job_time)
-    return makespan, total_waiting, schedule_log
+    return max(job_time), waiting, gantt
 
-# ----------------------------
-# NSGA-II (FAST DEMO)
-# ----------------------------
-def nsga2(processing_times, pop_size=10):
-    n_jobs = processing_times.shape[0]
-    population = [random.sample(range(n_jobs), n_jobs) for _ in range(pop_size)]
 
-    solutions = []
-    for individual in population:
-        m, w, s = evaluate_schedule(individual, processing_times)
-        solutions.append({
-            "sequence": individual,
-            "makespan": m,
-            "waiting": w,
-            "schedule": s
-        })
-    return solutions
+# ----------------------------------
+# NSGA-II Core Functions
+# ----------------------------------
+def dominates(a, b):
+    return (a[0] <= b[0] and a[1] <= b[1]) and (a[0] < b[0] or a[1] < b[1])
 
-# ----------------------------
-# Fitness Function (GOAL)
-# ----------------------------
-def compute_fitness(solutions, w_m=0.5, w_w=0.5):
-    makespans = [s["makespan"] for s in solutions]
-    waitings = [s["waiting"] for s in solutions]
 
-    nm = normalize(makespans)
-    nw = normalize(waitings)
+def fast_nondominated_sort(pop):
+    fronts = [[]]
+    for p in pop:
+        p["dominated"] = []
+        p["dom_count"] = 0
+        for q in pop:
+            if dominates(p["obj"], q["obj"]):
+                p["dominated"].append(q)
+            elif dominates(q["obj"], p["obj"]):
+                p["dom_count"] += 1
 
-    for i, s in enumerate(solutions):
-        s["fitness"] = w_m * nm[i] + w_w * nw[i]
-    return solutions
+        if p["dom_count"] == 0:
+            p["rank"] = 1
+            fronts[0].append(p)
 
-# ----------------------------
-# Pareto Plot
-# ----------------------------
-def plot_pareto(solutions):
-    m = [s["makespan"] for s in solutions]
-    w = [s["waiting"] for s in solutions]
+    i = 0
+    while fronts[i]:
+        next_front = []
+        for p in fronts[i]:
+            for q in p["dominated"]:
+                q["dom_count"] -= 1
+                if q["dom_count"] == 0:
+                    q["rank"] = i + 2
+                    next_front.append(q)
+        i += 1
+        fronts.append(next_front)
 
-    fig, ax = plt.subplots()
-    ax.scatter(m, w)
-    ax.set_xlabel("Makespan")
-    ax.set_ylabel("Waiting Time")
-    ax.set_title("Pareto Front (Trade-off)")
-    st.pyplot(fig)
+    return fronts[:-1]
 
-# ----------------------------
-# Gantt Chart
-# ----------------------------
-def plot_gantt(schedule):
-    fig, ax = plt.subplots()
 
+def crowding_distance(front):
+    if not front:
+        return
+
+    for p in front:
+        p["distance"] = 0
+
+    for i in range(2):
+        front.sort(key=lambda x: x["obj"][i])
+        front[0]["distance"] = front[-1]["distance"] = float("inf")
+        min_v = front[0]["obj"][i]
+        max_v = front[-1]["obj"][i]
+
+        for j in range(1, len(front) - 1):
+            front[j]["distance"] += (
+                front[j + 1]["obj"][i] - front[j - 1]["obj"][i]
+            ) / (max_v - min_v + 1e-9)
+
+
+def tournament_selection(pop):
+    a, b = random.sample(pop, 2)
+    if a["rank"] < b["rank"]:
+        return a
+    if a["rank"] == b["rank"] and a["distance"] > b["distance"]:
+        return a
+    return b
+
+
+def crossover(p1, p2):
+    cut = random.randint(1, len(p1) - 2)
+    child = p1[:cut] + [j for j in p2 if j not in p1[:cut]]
+    return child
+
+
+def mutate(seq):
+    a, b = random.sample(range(len(seq)), 2)
+    seq[a], seq[b] = seq[b], seq[a]
+
+
+# ----------------------------------
+# NSGA-II Algorithm
+# ----------------------------------
+def nsga2(pt, pop_size, generations, pc, pm):
+    n_jobs = pt.shape[0]
+    population = []
+
+    for _ in range(pop_size):
+        seq = random.sample(range(n_jobs), n_jobs)
+        m, w, g = evaluate_schedule(seq, pt)
+        population.append({"seq": seq, "obj": (m, w), "gantt": g})
+
+    for _ in range(generations):
+        fronts = fast_nondominated_sort(population)
+        for f in fronts:
+            crowding_distance(f)
+
+        offspring = []
+        while len(offspring) < pop_size:
+            p1 = tournament_selection(population)
+            p2 = tournament_selection(population)
+            child_seq = p1["seq"][:]
+
+            if random.random() < pc:
+                child_seq = crossover(p1["seq"], p2["seq"])
+            if random.random() < pm:
+                mutate(child_seq)
+
+            m, w, g = evaluate_schedule(child_seq, pt)
+            offspring.append({"seq": child_seq, "obj": (m, w), "gantt": g})
+
+        population = offspring
+
+    return population
+
+
+# ----------------------------------
+# Gantt Chart (Professional)
+# ----------------------------------
+def plot_gantt(gantt):
+    fig, ax = plt.subplots(figsize=(10, 5))
     colors = {}
-    y_pos = {}
 
-    machines = sorted(set(s["machine"] for s in schedule))
-    for i, m in enumerate(machines):
-        y_pos[m] = i
+    for machine, start, end, job in gantt:
+        if job not in colors:
+            colors[job] = np.random.rand(3,)
+        ax.barh(machine, end - start, left=start, color=colors[job])
 
-    for s in schedule:
-        if s["job"] not in colors:
-            colors[s["job"]] = np.random.rand(3,)
-        ax.barh(
-            y_pos[s["machine"]],
-            s["end"] - s["start"],
-            left=s["start"],
-            color=colors[s["job"]]
-        )
-
-    ax.set_yticks(list(y_pos.values()))
-    ax.set_yticklabels(list(y_pos.keys()))
     ax.set_xlabel("Time")
-    ax.set_ylabel("Machine")
-    ax.set_title("Gantt Chart (Schedule Visualization)")
+    ax.set_title("Gantt Chart – Best NSGA-II Schedule")
     st.pyplot(fig)
 
-# ----------------------------
+
+# ----------------------------------
 # STREAMLIT UI
-# --------------------------
-st.title("NSGA-II Job Scheduling with Fitness Goal")
+# ----------------------------------
+st.title("NSGA-II Job Scheduling")
 
-uploaded_file = st.file_uploader("Upload Job Scheduling CSV", type=["csv"])
+uploaded = st.file_uploader("Upload CSV File", type="csv")
 
-if uploaded_file:
-    df = pd.read_csv(uploaded_file, index_col=0)
-    processing_times = df.values
-
-    st.subheader("Processing Time Matrix")
+if uploaded:
+    df = pd.read_csv(uploaded, index_col=0)
+    pt = df.values
     st.dataframe(df)
 
-    st.sidebar.header("Fitness Weights (Goal)")
-    w_m = st.sidebar.slider("Makespan Weight", 0.0, 1.0, 0.5)
-    w_w = 1.0 - w_m
+    st.sidebar.header("Parameters")
+    pop_size = st.sidebar.number_input("Population Size", 50, 200, 100)
+    generations = st.sidebar.number_input("Generations", 50, 300, 100)
+    pc = st.sidebar.slider("Crossover Rate", 0.5, 1.0, 0.9)
+    pm = st.sidebar.slider("Mutation Rate", 0.01, 0.5, 0.1)
 
     if st.button("Run NSGA-II"):
-        solutions = nsga2(processing_times)
-        solutions = compute_fitness(solutions, w_m, w_w)
+        with st.spinner("Running NSGA-II..."):
+            pop = nsga2(pt, pop_size, generations, pc, pm)
 
-        best = min(solutions, key=lambda x: x["fitness"])
+        pareto = [p for p in pop if p["rank"] == 1]
+
+        pareto_df = pd.DataFrame(
+            [(p["obj"][0], p["obj"][1]) for p in pareto],
+            columns=["Makespan", "Waiting Time"]
+        )
 
         st.subheader("Pareto Front")
-        plot_pareto(solutions)
+        st.scatter_chart(pareto_df)
 
-        st.subheader("Best Solution (Fitness-Based Goal)")
-        st.write(f"✔ Makespan: {best['makespan']}")
-        st.write(f"✔ Waiting Time: {best['waiting']}")
-        st.write(f"🎯 Fitness Value: {best['fitness']:.4f}")
-        st.write(f"🧬 Job Order: {[f'J{i+1}' for i in best['sequence']]}")
+        best = min(pareto, key=lambda x: x["obj"][0])
+        st.subheader("Best Schedule (Minimum Makespan)")
+        st.write("Sequence:", [f"J{i+1}" for i in best["seq"]])
+        st.write("Makespan:", best["obj"][0])
+        st.write("Waiting Time:", best["obj"][1])
 
-        st.subheader("Gantt Chart")
-        plot_gantt(best["schedule"])
+        plot_gantt(best["gantt"])
