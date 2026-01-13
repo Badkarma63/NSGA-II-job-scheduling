@@ -23,18 +23,15 @@ def evaluate_schedule(sequence, pt):
             finish = start + pt[job, m]
             machine_time[m] = finish
             job_time[job] = finish
-
             gantt.append((f"M{m+1}", start, finish, f"J{job+1}"))
 
     return max(job_time), waiting, gantt
-
 
 # ----------------------------------
 # NSGA-II Core Functions
 # ----------------------------------
 def dominates(a, b):
     return (a[0] <= b[0] and a[1] <= b[1]) and (a[0] < b[0] or a[1] < b[1])
-
 
 def fast_nondominated_sort(pop):
     fronts = [[]]
@@ -46,11 +43,9 @@ def fast_nondominated_sort(pop):
                 p["dominated"].append(q)
             elif dominates(q["obj"], p["obj"]):
                 p["dom_count"] += 1
-
         if p["dom_count"] == 0:
             p["rank"] = 1
             fronts[0].append(p)
-
     i = 0
     while fronts[i]:
         next_front = []
@@ -62,28 +57,20 @@ def fast_nondominated_sort(pop):
                     next_front.append(q)
         i += 1
         fronts.append(next_front)
-
     return fronts[:-1]
-
 
 def crowding_distance(front):
     if not front:
         return
-
     for p in front:
         p["distance"] = 0
-
     for i in range(2):
         front.sort(key=lambda x: x["obj"][i])
         front[0]["distance"] = front[-1]["distance"] = float("inf")
         min_v = front[0]["obj"][i]
         max_v = front[-1]["obj"][i]
-
         for j in range(1, len(front) - 1):
-            front[j]["distance"] += (
-                front[j + 1]["obj"][i] - front[j - 1]["obj"][i]
-            ) / (max_v - min_v + 1e-9)
-
+            front[j]["distance"] += (front[j + 1]["obj"][i] - front[j - 1]["obj"][i]) / (max_v - min_v + 1e-9)
 
 def tournament_selection(pop):
     a, b = random.sample(pop, 2)
@@ -93,17 +80,14 @@ def tournament_selection(pop):
         return a
     return b
 
-
 def crossover(p1, p2):
     cut = random.randint(1, len(p1) - 2)
     child = p1[:cut] + [j for j in p2 if j not in p1[:cut]]
     return child
 
-
 def mutate(seq):
     a, b = random.sample(range(len(seq)), 2)
     seq[a], seq[b] = seq[b], seq[a]
-
 
 # ----------------------------------
 # NSGA-II Algorithm
@@ -111,51 +95,46 @@ def mutate(seq):
 def nsga2(pt, pop_size, generations, pc, pm):
     n_jobs = pt.shape[0]
     population = []
-
     for _ in range(pop_size):
         seq = random.sample(range(n_jobs), n_jobs)
         m, w, g = evaluate_schedule(seq, pt)
         population.append({"seq": seq, "obj": (m, w), "gantt": g})
-
     for _ in range(generations):
         fronts = fast_nondominated_sort(population)
         for f in fronts:
             crowding_distance(f)
-
         offspring = []
         while len(offspring) < pop_size:
             p1 = tournament_selection(population)
             p2 = tournament_selection(population)
             child_seq = p1["seq"][:]
-
             if random.random() < pc:
                 child_seq = crossover(p1["seq"], p2["seq"])
             if random.random() < pm:
                 mutate(child_seq)
-
             m, w, g = evaluate_schedule(child_seq, pt)
             offspring.append({"seq": child_seq, "obj": (m, w), "gantt": g})
-
         population = offspring
-
     return population
 
+# ----------------------------------
+# Fitness Function
+# ----------------------------------
+def compute_fitness(individual):
+    makespan, waiting = individual["obj"]
+    fitness = 1 / (makespan + waiting + 1e-9)  # smaller obj → higher fitness
+    return fitness
 
 # ----------------------------------
 # Gantt Chart (Professional)
 # ----------------------------------
 def plot_gantt(gantt):
     fig, ax = plt.subplots(figsize=(12, 6))
-
-    # Dark background
     fig.patch.set_facecolor("#0E1117")
     ax.set_facecolor("#0E1117")
-
     jobs = sorted(list(set([g[3] for g in gantt])))
     machines = sorted(list(set([g[0] for g in gantt])))
-
     job_colors = {job: plt.cm.tab20(i) for i, job in enumerate(jobs)}
-
     for machine, start, end, job in gantt:
         ax.barh(
             machine,
@@ -175,7 +154,6 @@ def plot_gantt(gantt):
             fontsize=9,
             fontweight="bold"
         )
-
     ax.set_xlabel("Time", color="white")
     ax.set_ylabel("Machine", color="white")
     ax.set_title(
@@ -184,16 +162,13 @@ def plot_gantt(gantt):
         fontsize=14,
         pad=10
     )
-
     ax.tick_params(axis="x", colors="white")
     ax.tick_params(axis="y", colors="white")
-
     ax.grid(axis="x", linestyle="--", alpha=0.3, color="gray")
-
     for spine in ax.spines.values():
         spine.set_visible(False)
-
     st.pyplot(fig)
+
 # ----------------------------------
 # STREAMLIT UI
 # ----------------------------------
@@ -222,19 +197,32 @@ if uploaded is not None:
 
             pareto = fronts[0]
 
+        # Pareto Front Chart
         pareto_df = pd.DataFrame(
             [(p["obj"][0], p["obj"][1]) for p in pareto],
             columns=["Makespan", "Waiting Time"]
         )
-
         st.subheader("Pareto Front")
         st.scatter_chart(pareto_df)
 
+        # Best Schedule
         best = min(pareto, key=lambda x: x["obj"][0])
-
         st.subheader("Best Schedule (Minimum Makespan)")
         st.write("Sequence:", [f"J{i+1}" for i in best["seq"]])
         st.write("Makespan:", best["obj"][0])
         st.write("Waiting Time:", best["obj"][1])
-
         plot_gantt(best["gantt"])
+
+        # Fitness Values Table
+        st.subheader("Fitness Values for Population")
+        fitness_list = []
+        for i, ind in enumerate(pop):
+            fit = compute_fitness(ind)
+            fitness_list.append({
+                "Individual": i+1,
+                "Fitness": fit,
+                "Makespan": ind["obj"][0],
+                "Waiting Time": ind["obj"][1]
+            })
+        fitness_df = pd.DataFrame(fitness_list)
+        st.dataframe(fitness_df)
