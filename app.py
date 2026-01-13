@@ -125,3 +125,35 @@ def plot_gantt(schedule):
 # ----------------------------
 # STREAMLIT UI
 # --------------------------
+st.title("NSGA-II Job Scheduling with Fitness Goal")
+
+uploaded_file = st.file_uploader("Upload Job Scheduling CSV", type=["csv"])
+
+if uploaded_file:
+    df = pd.read_csv(uploaded_file, index_col=0)
+    processing_times = df.values
+
+    st.subheader("Processing Time Matrix")
+    st.dataframe(df)
+
+    st.sidebar.header("Fitness Weights (Goal)")
+    w_m = st.sidebar.slider("Makespan Weight", 0.0, 1.0, 0.5)
+    w_w = 1.0 - w_m
+
+    if st.button("Run NSGA-II"):
+        solutions = nsga2(processing_times)
+        solutions = compute_fitness(solutions, w_m, w_w)
+
+        best = min(solutions, key=lambda x: x["fitness"])
+
+        st.subheader("Pareto Front")
+        plot_pareto(solutions)
+
+        st.subheader("Best Solution (Fitness-Based Goal)")
+        st.write(f"✔ Makespan: {best['makespan']}")
+        st.write(f"✔ Waiting Time: {best['waiting']}")
+        st.write(f"🎯 Fitness Value: {best['fitness']:.4f}")
+        st.write(f"🧬 Job Order: {[f'J{i+1}' for i in best['sequence']]}")
+
+        st.subheader("Gantt Chart")
+        plot_gantt(best["schedule"])
