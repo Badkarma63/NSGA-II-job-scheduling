@@ -192,15 +192,16 @@ if uploaded is not None:
     pc = st.sidebar.slider("Crossover Rate", 0.5, 1.0, 0.9)
     pm = st.sidebar.slider("Mutation Rate", 0.01, 0.5, 0.1)
 
-    if st.button("Run NSGA-II"):
-        with st.spinner("Running NSGA-II..."):
-            pop = nsga2(pt, pop_size, generations, pc, pm)
+   if st.button("Run NSGA-II"):
+    with st.spinner("Running NSGA-II..."):
+        # Run NSGA-II
+        pop = nsga2(pt, pop_size, generations, pc, pm)
 
-            fronts = fast_nondominated_sort(pop)
-            for f in fronts:
-                crowding_distance(f)
+        fronts = fast_nondominated_sort(pop)
+        for f in fronts:
+            crowding_distance(f)
 
-            pareto = fronts[0]
+        pareto = fronts[0]
 
         # Pareto Front Chart
         pareto_df = pd.DataFrame(
@@ -218,7 +219,9 @@ if uploaded is not None:
         st.write("Waiting Time:", best["obj"][1])
         plot_gantt(best["gantt"])
 
-        # TOTAL FITNESS 
-      total_fitness = compute_total_fitness(pop)  # <- HERE
+        # -------------------------------
+        # TOTAL FITNESS
+        # -------------------------------
+        total_fitness = compute_total_fitness(pop)
         st.subheader("Total Fitness of Population")
-        st.write(f"{total_fitness:.6f}")  # <- HERE
+        st.write(f"{total_fitness:.2f}")
