@@ -144,49 +144,56 @@ def nsga2(pt, pop_size, generations, pc, pm):
 # ----------------------------------
 # Gantt Chart (Professional)
 # ----------------------------------
-import pandas as pd
-import plotly.express as px
+def plot_gantt(gantt):
+    fig, ax = plt.subplots(figsize=(12, 6))
 
-def plot_gantt(gantt_data):
-    """
-    gantt_data: list of dicts with keys:
-        Job, Machine, Start, Finish
-    Example:
-    [
-        {"Job": "J1", "Machine": "M1", "Start": 0, "Finish": 5},
-        {"Job": "J2", "Machine": "M1", "Start": 5, "Finish": 12},
-    ]
-    """
-    if not gantt_data or len(gantt_data) == 0:
-        print("No Gantt data to plot!")
-        return
+    # Dark background
+    fig.patch.set_facecolor("#0E1117")
+    ax.set_facecolor("#0E1117")
 
-    df = pd.DataFrame(gantt_data)
+    jobs = sorted(list(set([g[3] for g in gantt])))
+    machines = sorted(list(set([g[0] for g in gantt])))
 
-    fig = px.timeline(
-        df,
-        x_start="Start",
-        x_end="Finish",
-        y="Machine",
-        color="Job",
-        text="Job"
+    job_colors = {job: plt.cm.tab20(i) for i, job in enumerate(jobs)}
+
+    for machine, start, end, job in gantt:
+        ax.barh(
+            machine,
+            end - start,
+            left=start,
+            color=job_colors[job],
+            edgecolor="white",
+            linewidth=0.8
+        )
+        ax.text(
+            start + (end - start) / 2,
+            machine,
+            job,
+            va="center",
+            ha="center",
+            color="white",
+            fontsize=9,
+            fontweight="bold"
+        )
+
+    ax.set_xlabel("Time", color="white")
+    ax.set_ylabel("Machine", color="white")
+    ax.set_title(
+        "Gantt Chart – NSGA-II Optimized Schedule",
+        color="white",
+        fontsize=14,
+        pad=10
     )
 
-    fig.update_yaxes(autorange="reversed")  # So M1 is on top
-    fig.update_traces(marker=dict(line=dict(width=1, color="black")), textposition="inside")
-    fig.update_layout(
-        title="NSGA-II Job Schedule Gantt Chart",
-        title_x=0.5,
-        xaxis_title="Time",
-        yaxis_title="Machine",
-        font=dict(size=14),
-        bargap=0.3,  # Bigger boxes
-        plot_bgcolor="#f0f0f0",  # Light gray background
-        paper_bgcolor="#f0f0f0",
-        height=600,
-    )
+    ax.tick_params(axis="x", colors="white")
+    ax.tick_params(axis="y", colors="white")
 
-    fig.show()
+    ax.grid(axis="x", linestyle="--", alpha=0.3, color="gray")
+
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+    st.pyplot(fig)
 # ----------------------------------
 # STREAMLIT UI
 # ----------------------------------
