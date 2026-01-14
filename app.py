@@ -13,17 +13,18 @@ def evaluate_schedule(sequence, pt):
     n_jobs, n_machines = pt.shape
     machine_time = np.zeros(n_machines)
     job_time = np.zeros(n_jobs)
+
     waiting = 0
     gantt = []
-
     machine_processing = np.zeros(n_machines)
 
     for job in sequence:
         for m in range(n_machines):
             start = max(machine_time[m], job_time[job])
-            waiting += start - job_time[job]
-            finish = start + pt[job, m]
 
+            waiting += start - job_time[job]
+
+            finish = start + pt[job, m]
             machine_time[m] = finish
             job_time[job] = finish
             machine_processing[m] += pt[job, m]
@@ -31,7 +32,12 @@ def evaluate_schedule(sequence, pt):
             gantt.append((f"M{m+1}", start, finish, f"J{job+1}"))
 
     makespan = max(job_time)
+
+    # total idle time
     idle_time = np.sum(makespan - machine_processing)
+
+    # ✅ NORMALIZATION (brings to hundreds)
+    idle_time = idle_time / (n_machines * n_jobs)
 
     return makespan, waiting, idle_time, gantt
 
@@ -161,9 +167,9 @@ def nsga2(pt, pop_size, generations, pc, pm):
 def compute_total_fitness(population):
     total_fitness = 0
     for ind in population:
-        makespan, waiting = ind["obj"]
+        m, w = ind["obj"]
         idle = ind["idle"]
-        fitness = 1000 / (makespan + waiting + idle + 1e-9)
+        fitness = 1000 / (m + w + idle + 1e-9)
         total_fitness += fitness
     return total_fitness
 
@@ -183,11 +189,11 @@ def plot_gantt(gantt):
         ax.barh(machine, end - start, left=start,
                 color=job_colors[job], edgecolor="white")
         ax.text(start + (end - start) / 2, machine, job,
-                ha="center", va="center", color="white")
+                ha="center", va="center", color="white", fontsize=9)
 
     ax.set_xlabel("Time", color="white")
     ax.set_ylabel("Machine", color="white")
-    ax.set_title("Gantt Chart – NSGA-II Schedule", color="white")
+    ax.set_title("Gantt Chart – NSGA-II Optimized Schedule", color="white")
     ax.tick_params(colors="white")
     ax.grid(axis="x", linestyle="--", alpha=0.3)
 
@@ -238,7 +244,7 @@ if uploaded is not None:
             st.write("Sequence:", [f"J{i+1}" for i in best["seq"]])
             st.write("Makespan:", best["obj"][0])
             st.write("Waiting Time:", best["obj"][1])
-            st.write("Idle Time:", best["idle"])
+            st.write("Idle Time:", f"{best['idle']:.2f}")
 
             plot_gantt(best["gantt"])
 
